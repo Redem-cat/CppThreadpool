@@ -1,0 +1,23 @@
+
+这是一个非常经典的C++线程池实现练习，但也包含了一些非常典型的并发编程陷阱。你提供的代码主要有以下几个严重问题：
+严重的逻辑崩溃（Crash）：Task 和 Result 的通信机制是错误的。subMitTask 中没有建立两者之间的连接，且 Result 作为局部变量返回，Task 中保存的 Result* 指针会变成野指针或空指针。
+死锁（Deadlock）：ThreadPool 的析构函数中只进行了 wait，但没有通知（notify）正在睡眠的线程退出，导致主线程永远卡在析构函数中。
+线程安全隐患：threads_（unordered_map）在 start 和 threadFunc 中存在潜在的并发读写风险。
+测试代码逻辑错误：test.cpp 中的循环只执行一次就返回了。
+
+Result 机制重构（核心修复）：
+原问题：Result 在 subMitTask 返回时创建，Task 内部持有一个指向这个 Result 的裸指针。但 Result 是作为右值/临时对象返回给用户的，地址会发生变化（虽然有RVO，但不可靠），且如果用户不接收返回值，Result 立即析构，Task 指向空悬指针，exec() 时崩溃。
+修复：引入 ResultState 结构体，使用 std::shared_ptr 在 Task 和 Result 之间共享。无论 Result 对象被移动还是销毁，只要 Task 还在，ResultState 就存在。Task 执行完写入 ResultState，用户通过持有的 Result 读取 ResultState。
+死锁解决：
+原问题：~ThreadPool 中只调用了 exitCond_.wait。但是工作线程都阻塞在 notEmpty_.wait 上。如果不叫醒它们，它们永远不知道 isPoolRunning_ 变为了 false，导致主线程死等。
+修复：在析构函数中加入 notEmpty_.notify_all()，强制唤醒所有等待任务的线程，让它们进入下一次循环检查 isPoolRunning_ 状态并退出。
+threadFunc 逻辑清理：
+优化了 wait_for 和 wait 的逻辑分支，确保线程能正确响应超时（Cached模式回收）和线程池停止信号。
+安全性：threads_.erase(threadId) 是在持有 taskQueMtx_ 锁的情况下进行的，这防止了和 start 或 subMitTask（增加线程）同时操作 map 导致的迭代器失效或数据竞争。
+Test.cpp 逻辑：
+原 MyTask::run 中 for 循环里第一句就是 return sum，导致实际上并没有做累加。修复为循环结束后返回。
+增加了 std::this_thread::get_id() 的输出来验证多线程并行。
+细节优化：
+Thread::generateId_ 改为 std::atomic_int，保证多线程创建线程对象时的 ID 唯一性。
+
+线程池里面所有的东西需要处理完, 才能析构线程池
