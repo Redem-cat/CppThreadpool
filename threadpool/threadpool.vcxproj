@@ -124,6 +124,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="simplified.cpp" />
     <ClCompile Include="test.cpp" />
     <ClCompile Include="threadpool.cpp" />
   </ItemGroup>
