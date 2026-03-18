@@ -54,7 +54,7 @@ Result ThreadPool::subMitTask(std::shared_ptr<Task> sp) {
 
     std::unique_lock<std::mutex> lock(taskQueMtx_);
 
-    // 等待任务队列不满（最长阻塞1秒）
+    // Wait for task queue not full (max block for 1 second)
     if (!notFull_.wait_for(lock, std::chrono::seconds(1),
         [&]()->bool { return taskQue_.size() < (size_t)TaskQueMaxThreshold_; })) {
         std::cerr << "task que full, submit task fail" << std::endl;
@@ -97,10 +97,10 @@ void ThreadPool::start(int initThreadSize) {
         threads_.emplace(threadId, std::move(ptr));
     }
 
-    // 启动线程
+    // Start threads
     for (int i = 0; i < initThreadSize_; i++) {
-        threads_[i]->start(); // start 调用后 threadFunc 开始运行
-        idleThreadSize_++;    // 记录空闲线程
+        threads_[i]->start(); // After start() is called, threadFunc begins running
+        idleThreadSize_++;    // Record idle threads
     }
 }
 
@@ -174,11 +174,11 @@ bool ThreadPool::checkRunningState() const {
 
 // --- Thread 实现 ---
 
-std::atomic_int Thread::generateId_ = 0; // 初始化
+std::atomic_int Thread::generateId_{0}; // Initialize
 
 Thread::Thread(ThreadFunc func)
     : func_(func)
-    , threadId_(generateId_++) // 原子自增
+    , threadId_(generateId_++) // Atomic increment
 {
 }
 
@@ -221,7 +221,7 @@ Any Result::get() {
     if (!isValid_ || !state_) {
         throw std::runtime_error("Invalid Result: Task submission failed.");
     }
-    // 阻塞等待任务完成
+    // Block and wait for task completion
     state_->sem_.wait();
     return std::move(state_->any_);
 }

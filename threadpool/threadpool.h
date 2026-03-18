@@ -13,7 +13,7 @@
 #include <chrono>
 #include <unordered_map>
 
-// --- Any Àà (±£³Ö²»±ä) ---
+// --- Any class (remains unchanged) ---
 class Any {
 public:
     Any() = default;
@@ -48,7 +48,7 @@ private:
     std::unique_ptr<Base> base_;
 };
 
-// --- ĞÅºÅÁ¿Àà (±£³Ö²»±ä) ---
+// --- Semaphore class (remains unchanged) ---
 class Semaphore {
 public:
     Semaphore(int limit = 0) : resLimit_(limit) {}
@@ -73,38 +73,38 @@ private:
 
 class Task;
 
-// --- ĞÂÔö£ºResultState ---
-// ÓÃÓÚÔÚ Task ºÍ Result Ö®¼ä¹²Ïí×´Ì¬
+// --- New: ResultState ---
+// Used to share state between Task and Result
 struct ResultState {
     Any any_;
     Semaphore sem_;
     std::atomic_bool isValid_{ true };
 };
 
-// --- Result Àà ---
+// --- Result ç±» ---
 class Result {
 public:
-    // Result ÏÖÔÚ³ÖÓĞ¹²Ïí×´Ì¬£¬¶ø²»ÊÇ³ÖÓĞ Task
+    // Result now holds shared state instead of holding Task
     Result(std::shared_ptr<ResultState> state, bool isValid = true);
     ~Result() = default;
 
     Any get();
 private:
-    std::shared_ptr<ResultState> state_; // ¹²Ïí×´Ì¬
+    std::shared_ptr<ResultState> state_; // å…±äº«çŠ¶æ€
     bool isValid_;
 };
 
-// --- Task ³éÏó»ùÀà ---
+// --- Task æŠ½è±¡åŸºç±» ---
 class Task {
 public:
     Task();
     virtual ~Task() = default;
     void exec();
-    // ÉèÖÃ¹²Ïí×´Ì¬
+    // Set shared state
     void setResultState(std::shared_ptr<ResultState> state);
     virtual Any run() = 0;
 private:
-    // Task ³ÖÓĞ¹²Ïí×´Ì¬µÄÖ¸Õë
+    // Task holds pointer to shared state
     std::shared_ptr<ResultState> state_;
 };
 
@@ -113,10 +113,10 @@ enum class PoolMode {
     MODE_CACHED,
 };
 
-// --- Thread Àà ---
+// --- Thread ç±» ---
 class Thread {
 public:
-    using ThreadFunc = std::function<void(int)>; // ½ÓÊÕ threadId
+    using ThreadFunc = std::function<void(int)>; // æ¥æ”¶ threadId
 
     Thread(ThreadFunc func);
     ~Thread();
@@ -124,11 +124,11 @@ public:
     int getId() const;
 private:
     ThreadFunc func_;
-    static std::atomic_int generateId_; // ÓÅ»¯£º¸ÄÎªÔ­×Ó±äÁ¿
+    static std::atomic_int generateId_; // Optimization: changed to atomic variable
     int threadId_;
 };
 
-// --- ThreadPool Àà ---
+// --- ThreadPool ç±» ---
 class ThreadPool {
 public:
     ThreadPool();
@@ -146,10 +146,10 @@ public:
 
 private:
     void threadFunc(int threadId);
-    bool checkRunningState() const; // ÓÅ»¯£ºconstĞŞÊÎ
+    bool checkRunningState() const; // Optimization: const qualifier
 
 private:
-    // Ïß³ÌÁĞ±í
+    // Thread list
     std::unordered_map<int, std::unique_ptr<Thread>> threads_;
 
     size_t initThreadSize_;
